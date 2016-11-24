@@ -1,0 +1,17 @@
+#!/bin/bash
+SYMBOL=$1
+FNAME=$2
+
+if [ "x$FNAME" != "x" ]; then
+  RES=`nm $FNAME | egrep " $SYMBOL$" | grep -v ' U '`
+
+  if [ "x$RES" != "x" ]; then
+    echo $FNAME: $RES
+    exit 0
+  else
+    exit 1
+  fi
+else
+  find ~/vpp -name '*.a' -exec $0 $SYMBOL {} \;
+
+fi
