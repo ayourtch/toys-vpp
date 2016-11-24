@@ -1,4 +1,4 @@
-VPP_ROOT=~/vpp
+VPP_ROOT=../vpp
 VPP_TYPE=vpp_debug
 VPP_INSTALL=install-${VPP_TYPE}-native
 INST_ROOT=${VPP_ROOT}/build-root/${VPP_INSTALL}

@@ -1,6 +1,8 @@
 #include <vppinfra/pool.h>
 #include <vnet/classify/vnet_classify.h>
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 
 
@@ -80,7 +82,7 @@ acl_classify_add_del_table(vnet_classify_main_t * cm, u8 * mask, u32 mask_len, u
   u32 skip = count_skip(mask, mask_len);
   u32 match = (mask_len/16) - skip;
   u8 *skip_mask_ptr = mask + 16*skip;
-  return vnet_classify_add_del_table(cm, skip_mask_ptr, nbuckets, memory_size, skip, match, next_table_index, miss_next_index, table_index, is_add);
+  return vnet_classify_add_del_table(cm, skip_mask_ptr, nbuckets, memory_size, skip, match, next_table_index, miss_next_index, table_index, 0, 0, is_add);
 }
 
 
@@ -134,13 +136,15 @@ int main(int argc, char *argv[])
 
   cm->vlib_main = vlib_get_main();
   cm->vnet_main = vnet_get_main();
+  ip4_table_index = ~0;
 
   rv = acl_classify_add_del_table(cm, ip4_5tuple_mask, sizeof(ip4_5tuple_mask)-1, ~0, next, &ip4_table_index, 1);
+
   clib_warning("result of table add: %d", rv);
   while (1) {
     *(u16 *)&ip4_5tuple_mask[14 + 0x14] = 0xffff & opaque_index;
     *(u32 *)&ip4_5tuple_mask[14 + 0x0c] = opaque_index;
-    rv = vnet_classify_add_del_session(cm, ip4_table_index, ip4_5tuple_mask, session_match_next, opaque_index++, 0, 1);
+    rv = vnet_classify_add_del_session(cm, ip4_table_index, ip4_5tuple_mask, session_match_next, opaque_index++, 0, 42, ~0, 1);
     if (rv) {
       printf("Non-zero rv: %d, opaque_index: %d\n", rv, opaque_index);
     }
