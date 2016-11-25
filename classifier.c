@@ -89,6 +89,39 @@ void print_result(int i)
   printf("memory size: %u nbuckets: %u max_sessions: %u\n", memory_size, nbuckets, opaque_index);
 }
 
+void sig_abrt(int i)
+{
+  print_result(i);
+}
+
+static int ctrl_c_pressed = 0;
+
+void sig_int(int i)
+{
+  print_result(i);
+  if (ctrl_c_pressed) {
+    printf("Ctrl-C, aborting!\n");
+    exit(1);
+  } else {
+    ctrl_c_pressed = 1;
+  }
+}
+
+u32 old_opaque_index = 0;
+
+void print_intermediate_result(int i)
+{
+  printf("memory size: %u nbuckets: %u max_sessions: %u\n", memory_size, nbuckets, opaque_index);
+  printf("Sessions created since last report: %u\n", opaque_index - old_opaque_index);
+  old_opaque_index = opaque_index;
+}
+
+void sig_alrm(int i)
+{
+  print_intermediate_result(i);
+  ctrl_c_pressed = 0;
+  alarm(1);
+}
 
 int main(int argc, char *argv[])
 {
@@ -126,21 +159,27 @@ int main(int argc, char *argv[])
     printf("Parent done!\n");
     exit(0);
   }
-
-  signal(SIGABRT, print_result);
-  signal(SIGINT, print_result);
+  signal(SIGALRM, sig_alrm);
+  signal(SIGABRT, sig_abrt);
+  signal(SIGINT, sig_int);
+  alarm(1);
   clib_mem_init (0, 3ULL << 10);
   memset(cm, 0, sizeof(*cm));
 
   cm->vlib_main = vlib_get_main();
   cm->vnet_main = vnet_get_main();
-
-  rv = acl_classify_add_del_table(cm, ip4_5tuple_mask, sizeof(ip4_5tuple_mask)-1, ~0, next, &ip4_table_index, 1);
+  for(i=0;i<64; i++) {
+    rv = acl_classify_add_del_table(cm, ip4_5tuple_mask, sizeof(ip4_5tuple_mask)-1, ~0, next, &ip4_table_index, 1);
+  }
   clib_warning("result of table add: %d", rv);
   while (1) {
     *(u16 *)&ip4_5tuple_mask[14 + 0x14] = 0xffff & opaque_index;
     *(u32 *)&ip4_5tuple_mask[14 + 0x0c] = opaque_index;
-    rv = vnet_classify_add_del_session(cm, ip4_table_index, ip4_5tuple_mask, session_match_next, opaque_index++, 0, 1);
+    opaque_index++;
+    rv = vnet_classify_add_del_session(cm, ip4_table_index-4, ip4_5tuple_mask, session_match_next, opaque_index, 0, 1);
+    rv = vnet_classify_add_del_session(cm, ip4_table_index-3, ip4_5tuple_mask, session_match_next, opaque_index, 0, 1);
+    rv = vnet_classify_add_del_session(cm, ip4_table_index-2, ip4_5tuple_mask, session_match_next, opaque_index, 0, 1);
+    rv = vnet_classify_add_del_session(cm, ip4_table_index-1, ip4_5tuple_mask, session_match_next, opaque_index, 0, 1);
     if (rv) {
       printf("Non-zero rv: %d, opaque_index: %d\n", rv, opaque_index);
     }
